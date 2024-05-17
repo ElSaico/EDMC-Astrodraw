@@ -1,22 +1,24 @@
 EDMC-Astrodraw
 ==============
 
-## Plan
+## Development plan
 
 - [ ] Map
-  - [ ] Get necessary tiles
-    - URL format: https://edastro.b-cdn.net/galmap/tiles/indexedheat/?/?/?.png
-    - Find out the tile-coordinate mapping
+  - [ ] Get relevant tiles
+    - URL format: `https://edastro.b-cdn.net/galmap/tiles/indexedheat/{zoom}/{x}/{y}.png`
+    - 1:1 on zoom 6, 2:1 on 7, 4:1 on 8
+    - Find out which tiles correspond to the map coordinates
+    - Map to ED coordinates:
+      - `x = (1+x/81920)*128`
+      - `z = -(1+(25000-y)/81920)*128`
   - [ ] Get timestamp of current heatmap
     - `timestamp_tiles` variable from https://edastro.com/galmap/galmap.js
   - [ ] Get from journal only the systems discovered afterwards
-  - [ ] Get colors of target pixels and recalculate with the added systems
-    - https://matplotlib.org/stable/api/_as_gen/matplotlib.colors.LinearSegmentedColormap.html
-    - Compute and store reverse map for entire 0-5000 range
+  - [ ] Get colors of related pixels, map to values and recalculate with the new systems
 - [ ] Button bar
   - [ ] Load file
     - One `x, z` point per line
     - Separator for disjointed elements
-  - [ ] Load journal(s)
+  - [ ] Load external journal(s)
   - [ ] Toggle drawing
   - [ ] Toggle predicted
