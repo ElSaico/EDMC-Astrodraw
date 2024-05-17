@@ -10,11 +10,11 @@ EDMC-Astrodraw
 - [ ] Map
   - [ ] Get relevant tiles
     - URL format: `https://edastro.b-cdn.net/galmap/tiles/indexedheat/{zoom}/{x}/{y}.png`
-    - 1:1 on zoom 6, 2:1 on 7, 4:1 on 8
-    - Find out which tiles correspond to the map coordinates
-    - Map to ED coordinates:
-      - `x = (1+x/81920)*128`
-      - `z = -(1+(25000-y)/81920)*128`
+    - Zoom level 6 is the original size, 1px = 10ly
+    - ED to map coordinates:
+      - `Xm = Xe/10 + 8192`
+      - `Ym = (Ze-25000)/10 - 8192`
+    - Each tile is 256x256
   - [ ] Get system discoveries dated after latest update
     - The gap between generating the map and tiles means that any predictions are pessimistic
   - [ ] Update colors of affected points
