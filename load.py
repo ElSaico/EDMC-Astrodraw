@@ -1,17 +1,18 @@
 import logging
 import os
+import re
+import requests
 import sqlite3
+import threading
 import tkinter as tk
-from tkinter import ttk
 from typing import Optional
 
 from theme import theme
-from config import appname, config
+from config import appname, config, user_agent
 import myNotebook as nb
 
 plugin_name = os.path.basename(os.path.dirname(__file__))
 logger = logging.getLogger(f'{appname}.{plugin_name}')
-frame: Optional[tk.Frame] = None
 
 # values outside the index were linearly interpolated; anything beyond 20 is overkill
 INDEXED_HEATMAP = [  # TODO verify
@@ -19,16 +20,45 @@ INDEXED_HEATMAP = [  # TODO verify
     '#3f58ff', '#3f65ff', '#3f72ff', '#3f80ff', '#398cff', '#3299ff', '#2ca6ff',
     '#26b3ff', '#1fc0ff', '#19ccff', '#13d9ff', '#0ce6ff', '#06f3ff', '#00ffff',
 ]
+RE_EDASTRO_UPDATE = re.compile(r"var timestamp_tiles = '(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})';")
 
 
-def plugin_start3(plugin_dir: str) -> str:
-    return plugin_name
+class Astrodraw:
+    frame: Optional[tk.Frame] = None
+
+    def __init__(self):
+        self.thread_update = threading.Thread(target=self.worker_update, name='Astrodraw-Update')
+        self.thread_update.daemon = True
+        self.conf_update = tk.StringVar(value=config.get_str('astrodraw_updated', default='Loading...'))
+        self.session = requests.Session()
+        self.session.headers['User-Agent'] = user_agent
+
+    def start(self, plugin_dir: str):
+        self.thread_update.start()
+        return plugin_name
+
+    def stop(self):
+        self.thread_update.join()
+        self.session.close()
+
+    def app(self, parent: tk.Frame):
+        self.frame = tk.Frame(parent)
+        tk.Label(self.frame, text='EDAstro updated:').grid(row=0, sticky=tk.W)
+        tk.Label(self.frame, textvariable=self.conf_update).grid(row=0, column=1)
+        heatmap = tk.Frame(self.frame)
+        heatmap.grid(row=1)
+        return self.frame
+
+    def worker_update(self):
+        logger.info('Fetching timestamp of latest EDAstro update...')
+        response = self.session.get('https://edastro.com/galmap/galmap.js')
+        updated = RE_EDASTRO_UPDATE.search(response.text)
+        y, m, d, h, M, s = updated.groups()
+        self.conf_update.set(f'{y}-{m}-{d} {h}:{M}:{s}')
+        logger.info('EDAstro latest update timestamp set')
 
 
-def plugin_stop() -> None:
-    logger.info('Stopping EDMC-Astrodraw')
-
-
-def plugin_app(parent: tk.Frame) -> Optional[tk.Frame]:
-    frame = tk.Frame(parent)
-    return frame
+plugin = Astrodraw()
+plugin_start3 = plugin.start
+plugin_stop = plugin.stop
+plugin_app = plugin.app
