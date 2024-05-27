@@ -2,13 +2,11 @@ import logging
 import os
 import re
 import requests
-import sqlite3
 import threading
 import tkinter as tk
 from typing import Optional
 
-from theme import theme
-from config import appname, config, user_agent
+from config import appname, user_agent
 
 plugin_name = os.path.basename(os.path.dirname(__file__))
 logger = logging.getLogger(f'{appname}.{plugin_name}')
@@ -28,7 +26,7 @@ class Astrodraw:
     def __init__(self):
         self.thread_update = threading.Thread(target=self.worker_update, name='Astrodraw-Update')
         self.thread_update.daemon = True
-        self.conf_update = tk.StringVar(value=config.get_str('astrodraw_updated', default='Loading...'))
+        self.updated: str = 'Loading...'
         self.show_drawing = tk.BooleanVar(value=False)
         self.show_predict = tk.BooleanVar(value=False)
         self.session = requests.Session()
@@ -45,13 +43,14 @@ class Astrodraw:
     def app(self, parent: tk.Frame):
         self.frame = tk.Frame(parent)
         tk.Label(self.frame, text='EDAstro updated:').grid(row=0, sticky=tk.W)
-        tk.Label(self.frame, textvariable=self.conf_update).grid(row=0, column=1, columnspan=2, sticky=tk.W)
+        updated_lbl = tk.Label(self.frame, text=self.updated)
+        updated_lbl.grid(row=0, column=1, columnspan=2, sticky=tk.W)
         heatmap = tk.Frame(self.frame)
         heatmap.grid(row=1, columnspan=3)
         tk.Button(self.frame, text='Load file', command=self.load_file).grid(row=2, column=0)
         tk.Checkbutton(self.frame, text='Drawing', variable=self.show_drawing).grid(row=2, column=1)
         tk.Checkbutton(self.frame, text='Prediction', variable=self.show_predict).grid(row=2, column=2)
-        theme.update(self.frame)
+        self.frame.bind('<<AstrodrawUpdate>>', lambda e: updated_lbl.configure(text=self.updated))
         return self.frame
 
     def worker_update(self):
@@ -59,7 +58,8 @@ class Astrodraw:
         response = self.session.get('https://edastro.com/galmap/galmap.js')
         updated = RE_EDASTRO_UPDATE.search(response.text)
         y, m, d, h, M, s = updated.groups()
-        self.conf_update.set(f'{y}-{m}-{d} {h}:{M}:{s}')
+        self.updated = f'{y}-{m}-{d} {h}:{M}:{s}'
+        self.frame.event_generate('<<AstrodrawUpdate>>')
         logger.info('EDAstro latest update timestamp set')
 
     def load_file(self):
