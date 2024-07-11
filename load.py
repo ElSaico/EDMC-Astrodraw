@@ -1,12 +1,14 @@
+import csv
 import logging
 import os
 import re
 import requests
 import threading
 import tkinter as tk
-from typing import Optional
+from tkinter import filedialog
 
 from config import appname, user_agent
+from theme import theme
 
 plugin_name = os.path.basename(os.path.dirname(__file__))
 logger = logging.getLogger(f'{appname}.{plugin_name}')
@@ -20,8 +22,19 @@ INDEXED_HEATMAP = [  # TODO verify
 RE_EDASTRO_UPDATE = re.compile(r"var timestamp_tiles = '(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})';")
 
 
+def galactic_x_to_map_x(x):
+    return x / 10 + 8192
+
+
+def galactic_z_to_map_y(z):
+    return (z - 25000) / 10 + 8192
+
+
 class Astrodraw:
-    frame: Optional[tk.Frame] = None
+    frame: tk.Frame
+    heatmap_frm: tk.Frame
+    heatmap_img: dict[tuple[int, int], tk.PhotoImage] = {}
+    coords: list[tuple[int, int]]
 
     def __init__(self):
         self.thread_update = threading.Thread(target=self.worker_update, name='Astrodraw-Update')
@@ -48,8 +61,8 @@ class Astrodraw:
         updated_lbl = tk.Label(updated_frm, text=self.updated)
         updated_lbl.pack(fill=tk.X, side=tk.LEFT)
 
-        heatmap = tk.Frame(self.frame)
-        heatmap.pack(fill=tk.BOTH)
+        self.heatmap_frm = tk.Frame(self.frame)
+        self.heatmap_frm.pack(fill=tk.BOTH)
 
         commands_frm = tk.Frame(self.frame)
         commands_frm.pack(fill=tk.X)
@@ -73,7 +86,24 @@ class Astrodraw:
         logger.info('EDAstro latest update timestamp set')
 
     def load_file(self):
-        ...
+        if f := filedialog.askopenfile():
+            with f:  # TODO error handling
+                self.coords = [(int(x), int(z)) for x, z in csv.reader(f)]
+                self.draw_heatmap()
+
+    def draw_heatmap(self):
+        xs, zs = zip(*self.coords)
+        min_x = int(galactic_x_to_map_x(min(xs)) // 256)
+        max_x = int(galactic_x_to_map_x(max(xs)) // 256)
+        min_y = int(galactic_z_to_map_y(min(zs)) // 256)
+        max_y = int(galactic_z_to_map_y(max(zs)) // 256)
+        for x in range(min_x, max_x + 1):
+            for y in range(min_y, max_y + 1):
+                # TODO make threaded
+                tile = requests.get(f'https://edastro.b-cdn.net/galmap/tiles/indexedheat/6/{x}/{y}.png')
+                self.heatmap_img[x, y] = tk.PhotoImage(data=tile.content)
+                tk.Label(self.heatmap_frm, image=self.heatmap_img[x, y], borderwidth=0).grid(row=y-min_y, column=x-min_x)
+        theme.update(self.heatmap_frm)
 
 
 plugin = Astrodraw()
