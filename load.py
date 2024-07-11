@@ -33,8 +33,10 @@ def galactic_z_to_map_y(z):
 class Astrodraw:
     frame: tk.Frame
     heatmap_frm: tk.Frame
-    heatmap_img: dict[tuple[int, int], tk.PhotoImage] = {}
+    heatmap_img: dict[tuple[int, int], tk.PhotoImage]
     coords: list[tuple[int, int]]
+    min_x: int
+    min_y: int
 
     def __init__(self):
         self.thread_update = threading.Thread(target=self.worker_update, name='Astrodraw-Update')
@@ -89,20 +91,28 @@ class Astrodraw:
         if f := filedialog.askopenfile():
             with f:  # TODO error handling
                 self.coords = [(int(x), int(z)) for x, z in csv.reader(f)]
-                self.draw_heatmap()
+            self.heatmap_img = {}
+            xs, zs = zip(*self.coords)
+            self.min_x = int(galactic_x_to_map_x(min(xs)) // 256)
+            max_x = int(galactic_x_to_map_x(max(xs)) // 256)
+            self.min_y = int(galactic_z_to_map_y(min(zs)) // 256)
+            max_y = int(galactic_z_to_map_y(max(zs)) // 256)
+            for x in range(self.min_x, max_x + 1):
+                for y in range(self.min_y, max_y + 1):
+                    # TODO make threaded
+                    tile = requests.get(f'https://edastro.b-cdn.net/galmap/tiles/indexedheat/6/{x}/{y}.png')
+                    self.heatmap_img[x, y] = tk.PhotoImage(data=tile.content)
+            self.draw_heatmap()
 
     def draw_heatmap(self):
-        xs, zs = zip(*self.coords)
-        min_x = int(galactic_x_to_map_x(min(xs)) // 256)
-        max_x = int(galactic_x_to_map_x(max(xs)) // 256)
-        min_y = int(galactic_z_to_map_y(min(zs)) // 256)
-        max_y = int(galactic_z_to_map_y(max(zs)) // 256)
-        for x in range(min_x, max_x + 1):
-            for y in range(min_y, max_y + 1):
-                # TODO make threaded
-                tile = requests.get(f'https://edastro.b-cdn.net/galmap/tiles/indexedheat/6/{x}/{y}.png')
-                self.heatmap_img[x, y] = tk.PhotoImage(data=tile.content)
-                tk.Label(self.heatmap_frm, image=self.heatmap_img[x, y], borderwidth=0).grid(row=y-min_y, column=x-min_x)
+        for child in self.heatmap_frm.children.values():
+            child.destroy()
+        for (x, y), image in self.heatmap_img.items():
+            tk.Label(self.heatmap_frm, image=self.heatmap_img[x, y], borderwidth=0).grid(row=y-self.min_y, column=x-self.min_x)
+        if self.show_drawing.get():
+            ...
+        if self.show_predict.get():
+            ...
         theme.update(self.heatmap_frm)
 
 
