@@ -42,14 +42,24 @@ class Astrodraw:
 
     def app(self, parent: tk.Frame):
         self.frame = tk.Frame(parent)
-        tk.Label(self.frame, text='EDAstro updated:').grid(row=0, sticky=tk.W)
-        updated_lbl = tk.Label(self.frame, text=self.updated)
-        updated_lbl.grid(row=0, column=1, columnspan=2, sticky=tk.W)
+        updated_frm = tk.Frame(self.frame)
+        updated_frm.pack(fill=tk.X)
+        tk.Label(updated_frm, text='EDAstro updated:').pack(side=tk.LEFT)
+        updated_lbl = tk.Label(updated_frm, text=self.updated)
+        updated_lbl.pack(fill=tk.X, side=tk.LEFT)
+
         heatmap = tk.Frame(self.frame)
-        heatmap.grid(row=1, columnspan=3)
-        tk.Button(self.frame, text='Load file', command=self.load_file).grid(row=2, column=0)
-        tk.Checkbutton(self.frame, text='Drawing', variable=self.show_drawing).grid(row=2, column=1)
-        tk.Checkbutton(self.frame, text='Prediction', variable=self.show_predict).grid(row=2, column=2)
+        heatmap.pack(fill=tk.BOTH)
+
+        commands_frm = tk.Frame(self.frame)
+        commands_frm.pack(fill=tk.X)
+        tk.Button(commands_frm, text='Load file', command=self.load_file).pack(side=tk.LEFT)
+        # checkbutton labels are not themed properly
+        tk.Checkbutton(commands_frm, variable=self.show_drawing).pack(side=tk.LEFT)
+        tk.Label(commands_frm, text='Drawing').pack(side=tk.LEFT)
+        tk.Checkbutton(commands_frm, variable=self.show_predict).pack(side=tk.LEFT)
+        tk.Label(commands_frm, text='Prediction').pack(side=tk.LEFT)
+
         self.frame.bind('<<AstrodrawUpdate>>', lambda e: updated_lbl.configure(text=self.updated))
         return self.frame
 
