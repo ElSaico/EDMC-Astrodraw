@@ -11,6 +11,7 @@ from tkinter import filedialog
 
 from PIL import Image, ImageDraw, ImageTk
 from config import appname, user_agent
+from plug import show_error
 
 plugin_name = os.path.basename(os.path.dirname(__file__))
 logger = logging.getLogger(f'{appname}.{plugin_name}')
@@ -99,8 +100,12 @@ class Astrodraw:
 
     def load_file(self):
         if f := filedialog.askopenfile():
-            with f:  # TODO error handling
-                self.coords = [(galactic_x_to_map_x(int(x)), galactic_z_to_map_y(int(z))) for x, z in csv.reader(f)]
+            try:
+                with f:
+                    self.coords = [(galactic_x_to_map_x(int(x)), galactic_z_to_map_y(int(z))) for x, z in csv.reader(f)]
+            except ValueError:
+                show_error('AstroDraw: Wrong file format')
+                return
             xs, ys = zip(*self.coords)
             self.xmin = min(xs)
             self.ymin = min(ys)
