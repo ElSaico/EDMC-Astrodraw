@@ -1,4 +1,6 @@
 import csv
+import io
+import itertools
 import logging
 import os
 import re
@@ -7,6 +9,7 @@ import threading
 import tkinter as tk
 from tkinter import filedialog
 
+from PIL import Image, ImageDraw, ImageTk
 from config import appname, user_agent
 from theme import theme
 
@@ -32,8 +35,11 @@ def galactic_z_to_map_y(z):
 
 class Astrodraw:
     frame: tk.Frame
-    heatmap_frm: tk.Frame
-    heatmap_img: dict[tuple[int, int], tk.PhotoImage]
+    heatmap_root: tk.Frame
+    heatmap_grid: dict[tuple[int, int], tk.Frame] = {}
+    heatmap_images: dict[tuple[int, int], Image.Image] = {}
+    # Tk does not keep references to images, so we must store them to avoid garbage collection
+    tiles: list[ImageTk.PhotoImage] = []
     coords: list[tuple[int, int]]
     min_x: int
     min_y: int
@@ -63,8 +69,8 @@ class Astrodraw:
         updated_lbl = tk.Label(updated_frm, text=self.updated)
         updated_lbl.pack(fill=tk.X, side=tk.LEFT)
 
-        self.heatmap_frm = tk.Frame(self.frame)
-        self.heatmap_frm.pack(fill=tk.BOTH)
+        self.heatmap_root = tk.Frame(self.frame)
+        self.heatmap_root.pack(fill=tk.BOTH)
 
         commands_frm = tk.Frame(self.frame)
         commands_frm.pack(fill=tk.X)
@@ -91,7 +97,7 @@ class Astrodraw:
         if f := filedialog.askopenfile():
             with f:  # TODO error handling
                 self.coords = [(int(x), int(z)) for x, z in csv.reader(f)]
-            self.heatmap_img = {}
+            self.heatmap_images.clear()
             xs, zs = zip(*self.coords)
             self.min_x = int(galactic_x_to_map_x(min(xs)) // 256)
             max_x = int(galactic_x_to_map_x(max(xs)) // 256)
@@ -101,19 +107,24 @@ class Astrodraw:
                 for y in range(self.min_y, max_y + 1):
                     # TODO make threaded
                     tile = requests.get(f'https://edastro.b-cdn.net/galmap/tiles/indexedheat/6/{x}/{y}.png')
-                    self.heatmap_img[x, y] = tk.PhotoImage(data=tile.content)
+                    self.heatmap_images[x, y] = Image.open(io.BytesIO(tile.content))
             self.draw_heatmap()
 
     def draw_heatmap(self):
-        for child in self.heatmap_frm.children.values():
+        self.tiles.clear()
+        for child in self.heatmap_root.children.values():
             child.destroy()
-        for (x, y), image in self.heatmap_img.items():
-            tk.Label(self.heatmap_frm, image=self.heatmap_img[x, y], borderwidth=0).grid(row=y-self.min_y, column=x-self.min_x)
-        if self.show_drawing.get():
-            ...
-        if self.show_predict.get():
-            ...
-        theme.update(self.heatmap_frm)
+        for x, y in self.heatmap_images:
+            image = self.heatmap_images[x, y].copy()
+            draw = ImageDraw.Draw(image)
+            if self.show_drawing.get():
+                ...  # TODO map lines to tiles
+            if self.show_predict.get():
+                ...
+            grid_image = ImageTk.PhotoImage(image)
+            self.tiles.append(grid_image)
+            tk.Label(self.heatmap_root, image=grid_image, borderwidth=0).grid(row=y - self.min_y, column=x - self.min_x)
+        theme.update(self.heatmap_root)
 
 
 plugin = Astrodraw()
