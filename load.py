@@ -33,6 +33,7 @@ def galactic_z_to_map_y(z: int):
     return (z - 25000) / 10 + 8192
 
 
+# TODO other zoom levels
 class Astrodraw:
     frame: tk.Frame
     heatmap: Image.Image
