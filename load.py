@@ -41,8 +41,10 @@ class Astrodraw:
     # Tk does not keep references to images, so we need one to prevent garbage collection
     display_img: ImageTk.PhotoImage
     coords: list[tuple[int, int]]
-    origin_x: int
-    origin_y: int
+    size: tuple[int, int]
+    bounds: tuple[int, int, int, int]
+    xmin: int
+    ymin: int
 
     def __init__(self):
         self.thread_update = threading.Thread(target=self.worker_update, name='Astrodraw-Update')
@@ -100,32 +102,36 @@ class Astrodraw:
             with f:  # TODO error handling
                 self.coords = [(galactic_x_to_map_x(int(x)), galactic_z_to_map_y(int(z))) for x, z in csv.reader(f)]
             xs, ys = zip(*self.coords)
-            self.origin_x = min(xs)
-            self.origin_y = min(ys)
-            min_x = int(self.origin_x // TILE_SIZE)
-            max_x = int(max(xs) // TILE_SIZE)
-            min_y = int(self.origin_y // TILE_SIZE)
-            max_y = int(max(ys) // TILE_SIZE)
-            self.heatmap = Image.new('RGB', (TILE_SIZE * (max_x - min_x + 1), TILE_SIZE * (max_y - min_y + 1)))
-            for x in range(min_x, max_x + 1):
-                for y in range(min_y, max_y + 1):  # TODO make threaded
+            self.xmin = min(xs)
+            self.ymin = min(ys)
+            xmax = max(xs)
+            ymax = max(ys)
+            tile_xmin = int(self.xmin // TILE_SIZE)
+            tile_xmax = int(xmax // TILE_SIZE)
+            tile_ymin = int(self.ymin // TILE_SIZE)
+            tile_ymax = int(ymax // TILE_SIZE)
+            offset_x = self.xmin % TILE_SIZE
+            offset_y = self.ymin % TILE_SIZE
+            self.size = (xmax-self.xmin+1, ymax-self.ymin+1)
+            self.bounds = (self.xmin-offset_x, self.ymin-offset_y, xmax-offset_x, ymax-offset_y)
+            self.heatmap = Image.new('RGB', (TILE_SIZE * (tile_xmax-tile_xmin+1), TILE_SIZE * (tile_ymax-tile_ymin+1)))
+            for x in range(tile_xmin, tile_xmax + 1):
+                for y in range(tile_ymin, tile_ymax + 1):  # TODO make threaded
                     tile = requests.get(f'https://edastro.b-cdn.net/galmap/tiles/indexedheat/6/{x}/{y}.png')
                     with Image.open(io.BytesIO(tile.content)) as img:
-                        self.heatmap.paste(img, ((x-min_x) * TILE_SIZE, (y-min_y) * TILE_SIZE))
+                        self.heatmap.paste(img, ((x-tile_xmin) * TILE_SIZE, (y-tile_ymin) * TILE_SIZE))
             self.draw_heatmap()
 
     def draw_heatmap(self):
         if not self.heatmap:
             return
-        image = self.heatmap.copy()
+        image = self.heatmap.transform(self.size, Image.Transform.EXTENT, self.bounds)
         draw = ImageDraw.Draw(image)
         match self.heatmap_mode.get():
             case 'drawing':
                 for (x1, y1), (x2, y2) in itertools.pairwise(self.coords):
-                    draw.line((x1-self.origin_x, y1-self.origin_y, x2-self.origin_x, y2-self.origin_y),
-                              fill=(255, 255, 255))
+                    draw.line((x1-self.xmin, y1-self.ymin, x2-self.xmin, y2-self.ymin), fill=(255, 255, 255))
             # TODO estimate
-        # TODO trim image to drawing limits
         self.display_img = ImageTk.PhotoImage(image)
         self.display_lbl['image'] = self.display_img
 
