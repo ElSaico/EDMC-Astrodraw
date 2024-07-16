@@ -36,7 +36,7 @@ def galactic_z_to_map_y(z: int):
 # TODO other zoom levels
 class Astrodraw:
     frame: tk.Frame
-    heatmap: Image.Image
+    heatmap: Image.Image = None
     display_lbl: tk.Label
     # Tk does not keep references to images, so we need one to prevent garbage collection
     display_img: ImageTk.PhotoImage
@@ -113,7 +113,7 @@ class Astrodraw:
             offset_x = self.xmin % TILE_SIZE
             offset_y = self.ymin % TILE_SIZE
             self.size = (xmax-self.xmin+1, ymax-self.ymin+1)
-            self.bounds = (self.xmin-offset_x, self.ymin-offset_y, xmax-offset_x, ymax-offset_y)
+            self.bounds = (offset_x, offset_y, xmax-self.xmin+offset_x, ymax-self.ymin+offset_y)
             self.heatmap = Image.new('RGB', (TILE_SIZE * (tile_xmax-tile_xmin+1), TILE_SIZE * (tile_ymax-tile_ymin+1)))
             for x in range(tile_xmin, tile_xmax + 1):
                 for y in range(tile_ymin, tile_ymax + 1):  # TODO make threaded
