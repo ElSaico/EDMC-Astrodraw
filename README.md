@@ -16,11 +16,11 @@ EDMC-Astrodraw
       - `Ym = (Ze-25000)/10 - 8192`
     - Each tile is 256x256
   - [ ] Get system discoveries dated after latest update
-    - The gap between generating the map and tiles means that any predictions are pessimistic
+    - The gap between generating the map and tiles means that any estimations are pessimistic
   - [ ] Update colors of affected points
 - [ ] Button bar
   - [x] Load file
     - One `x, z` point per line
   - [ ] Load external journal(s)
-  - [ ] Toggle drawing
-  - [ ] Toggle predicted
+  - [x] Toggle drawing
+  - [ ] Toggle estimate

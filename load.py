@@ -26,11 +26,11 @@ RE_EDASTRO_UPDATE = re.compile(r"var timestamp_tiles = '(\d{4})(\d{2})(\d{2})-(\
 
 
 def galactic_x_to_map_x(x: int):
-    return x / 10 + 8192
+    return int(x // 10) + 8192
 
 
 def galactic_z_to_map_y(z: int):
-    return (z - 25000) / 10 + 8192
+    return int((z - 25000) // 10) + 8192
 
 
 # TODO other zoom levels
@@ -41,19 +41,19 @@ class Astrodraw:
     # Tk does not keep references to images, so we need one to prevent garbage collection
     display_img: ImageTk.PhotoImage
     coords: list[tuple[int, int]]
-    origin: tuple[int, int]
+    origin_x: int
+    origin_y: int
 
     def __init__(self):
         self.thread_update = threading.Thread(target=self.worker_update, name='Astrodraw-Update')
         self.thread_update.daemon = True
         self.updated: str = 'Loading...'
-        self.show_drawing = tk.BooleanVar(value=False)
-        self.show_predict = tk.BooleanVar(value=False)
+        self.heatmap_mode = tk.StringVar(value='default')
+        self.heatmap_mode.trace_add('write', lambda _, __, ___: self.draw_heatmap())
         self.session = requests.Session()
         self.session.headers['User-Agent'] = user_agent
 
     def start(self, plugin_dir: str):
-        self.thread_update.start()
         return plugin_name
 
     def stop(self):
@@ -74,13 +74,16 @@ class Astrodraw:
         commands_frm = tk.Frame(self.frame)
         commands_frm.pack(fill=tk.X)
         tk.Button(commands_frm, text='Load file', command=self.load_file).pack(side=tk.LEFT)
-        # checkbutton labels are not themed properly
-        tk.Checkbutton(commands_frm, variable=self.show_drawing).pack(side=tk.LEFT)
+        # radiobutton labels are not themed properly
+        tk.Radiobutton(commands_frm, variable=self.heatmap_mode, value='default').pack(side=tk.LEFT)
+        tk.Label(commands_frm, text='Default').pack(side=tk.LEFT)
+        tk.Radiobutton(commands_frm, variable=self.heatmap_mode, value='drawing').pack(side=tk.LEFT)
         tk.Label(commands_frm, text='Drawing').pack(side=tk.LEFT)
-        tk.Checkbutton(commands_frm, variable=self.show_predict).pack(side=tk.LEFT)
-        tk.Label(commands_frm, text='Prediction').pack(side=tk.LEFT)
+        tk.Radiobutton(commands_frm, variable=self.heatmap_mode, value='estimate').pack(side=tk.LEFT)
+        tk.Label(commands_frm, text='Estimate').pack(side=tk.LEFT)
 
         self.frame.bind('<<AstrodrawUpdate>>', lambda e: updated_lbl.configure(text=self.updated))
+        self.thread_update.start()
         return self.frame
 
     def worker_update(self):
@@ -95,12 +98,14 @@ class Astrodraw:
     def load_file(self):
         if f := filedialog.askopenfile():
             with f:  # TODO error handling
-                self.coords = [(int(x), int(z)) for x, z in csv.reader(f)]
-            xs, zs = zip(*self.coords)
-            min_x = int(galactic_x_to_map_x(min(xs)) // TILE_SIZE)
-            max_x = int(galactic_x_to_map_x(max(xs)) // TILE_SIZE)
-            min_y = int(galactic_z_to_map_y(min(zs)) // TILE_SIZE)
-            max_y = int(galactic_z_to_map_y(max(zs)) // TILE_SIZE)
+                self.coords = [(galactic_x_to_map_x(int(x)), galactic_z_to_map_y(int(z))) for x, z in csv.reader(f)]
+            xs, ys = zip(*self.coords)
+            self.origin_x = min(xs)
+            self.origin_y = min(ys)
+            min_x = int(self.origin_x // TILE_SIZE)
+            max_x = int(max(xs) // TILE_SIZE)
+            min_y = int(self.origin_y // TILE_SIZE)
+            max_y = int(max(ys) // TILE_SIZE)
             self.heatmap = Image.new('RGB', (TILE_SIZE * (max_x - min_x + 1), TILE_SIZE * (max_y - min_y + 1)))
             for x in range(min_x, max_x + 1):
                 for y in range(min_y, max_y + 1):  # TODO make threaded
@@ -110,12 +115,17 @@ class Astrodraw:
             self.draw_heatmap()
 
     def draw_heatmap(self):
+        if not self.heatmap:
+            return
         image = self.heatmap.copy()
         draw = ImageDraw.Draw(image)
-        if self.show_drawing.get():
-            ...
-        if self.show_predict.get():
-            ...
+        match self.heatmap_mode.get():
+            case 'drawing':
+                for (x1, y1), (x2, y2) in itertools.pairwise(self.coords):
+                    draw.line((x1-self.origin_x, y1-self.origin_y, x2-self.origin_x, y2-self.origin_y),
+                              fill=(255, 255, 255))
+            # TODO estimate
+        # TODO trim image to drawing limits
         self.display_img = ImageTk.PhotoImage(image)
         self.display_lbl['image'] = self.display_img
 
