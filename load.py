@@ -16,11 +16,10 @@ from plug import show_error
 plugin_name = os.path.basename(os.path.dirname(__file__))
 logger = logging.getLogger(f'{appname}.{plugin_name}')
 
-# values outside the index were linearly interpolated; anything beyond 20 is overkill
-INDEXED_HEATMAP = [  # TODO verify
-    '#000000', '#000080', '#0000ff', '#1515ff', '#2a2aff', '#3f3fff', '#3f4bff',
-    '#3f58ff', '#3f65ff', '#3f72ff', '#3f80ff', '#398cff', '#3299ff', '#2ca6ff',
-    '#26b3ff', '#1fc0ff', '#19ccff', '#13d9ff', '#0ce6ff', '#06f3ff', '#00ffff',
+INDEXED_HEATMAP = [  # anything beyond 20 (cyan) is overkill
+    (0,    0,   0),  (0,   0, 128),  (0,   0, 255), (21,  21, 255), (42,  42, 255), (63,  63, 255), (63,  75, 255),
+    (63,  88, 255), (63, 101, 255), (63, 114, 255), (63, 127, 255), (56, 139, 255), (50, 152, 255), (44, 165, 255),
+    (37, 178, 255), (31, 191, 255), (25, 203, 255), (18, 216, 255), (12, 229, 255),  (6, 242, 255),  (0, 255, 255),
 ]
 TILE_SIZE = 256
 RE_EDASTRO_UPDATE = re.compile(r"var timestamp_tiles = '(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})';")
@@ -125,6 +124,9 @@ class Astrodraw:
                     tile = requests.get(f'https://edastro.b-cdn.net/galmap/tiles/indexedheat/6/{x}/{y}.png')
                     with Image.open(io.BytesIO(tile.content)) as img:
                         self.heatmap.paste(img, ((x-tile_xmin) * TILE_SIZE, (y-tile_ymin) * TILE_SIZE))
+            for qty, (r, g, b) in self.heatmap.getcolors():
+                if b == 255 and (r, g, b) not in INDEXED_HEATMAP:
+                    logger.warning(f'Blue shade not in INDEXED_HEATMAP: {r, g, b}')
             self.draw_heatmap()
 
     def draw_heatmap(self):
