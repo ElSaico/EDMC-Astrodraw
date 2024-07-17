@@ -1,3 +1,4 @@
+import collections
 import csv
 import io
 import itertools
@@ -16,7 +17,7 @@ from plug import show_error
 plugin_name = os.path.basename(os.path.dirname(__file__))
 logger = logging.getLogger(f'{appname}.{plugin_name}')
 
-INDEXED_HEATMAP = [  # anything beyond 20 (cyan) is overkill
+INDEXED_HEATMAP = [  # only a small subset needed; 20 is already way past overkill for our purposes
     (0,    0,   0),  (0,   0, 128),  (0,   0, 255), (21,  21, 255), (42,  42, 255), (63,  63, 255), (63,  75, 255),
     (63,  88, 255), (63, 101, 255), (63, 114, 255), (63, 127, 255), (56, 139, 255), (50, 152, 255), (44, 165, 255),
     (37, 178, 255), (31, 191, 255), (25, 203, 255), (18, 216, 255), (12, 229, 255),  (6, 242, 255),  (0, 255, 255),
@@ -45,6 +46,8 @@ class Astrodraw:
     bounds: tuple[int, int, int, int]
     xmin: int
     ymin: int
+    discovered_map: dict[tuple[int, int], 0] = {}
+    discovered_player: collections.Counter[tuple[int, int]] = collections.Counter()
 
     def __init__(self):
         self.thread_update = threading.Thread(target=self.worker_update, name='Astrodraw-Update')
@@ -116,6 +119,7 @@ class Astrodraw:
             tile_ymax = int(ymax // TILE_SIZE)
             offset_x = self.xmin % TILE_SIZE
             offset_y = self.ymin % TILE_SIZE
+            self.discovered_map.clear()
             self.size = (xmax-self.xmin+1, ymax-self.ymin+1)
             self.bounds = (offset_x, offset_y, xmax-self.xmin+offset_x, ymax-self.ymin+offset_y)
             self.heatmap = Image.new('RGB', (TILE_SIZE * (tile_xmax-tile_xmin+1), TILE_SIZE * (tile_ymax-tile_ymin+1)))
@@ -124,9 +128,13 @@ class Astrodraw:
                     tile = requests.get(f'https://edastro.b-cdn.net/galmap/tiles/indexedheat/6/{x}/{y}.png')
                     with Image.open(io.BytesIO(tile.content)) as img:
                         self.heatmap.paste(img, ((x-tile_xmin) * TILE_SIZE, (y-tile_ymin) * TILE_SIZE))
-            for qty, (r, g, b) in self.heatmap.getcolors():
-                if b == 255 and (r, g, b) not in INDEXED_HEATMAP:
-                    logger.warning(f'Blue shade not in INDEXED_HEATMAP: {r, g, b}')
+            pixels = self.heatmap.load()
+            for x in range(self.heatmap.width):
+                for y in range(self.heatmap.height):
+                    try:
+                        self.discovered_map[x, y] = INDEXED_HEATMAP.index(pixels[x, y])
+                    except ValueError:
+                        logger.debug(f'Large heatmap index found: {pixels[x, y]}')
             self.draw_heatmap()
 
     def draw_heatmap(self):
