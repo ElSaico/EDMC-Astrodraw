@@ -15,12 +15,14 @@ EDMC-Astrodraw
       - `Xm = Xe/10 + 8192`
       - `Ym = (Ze-25000)/10 - 8192`
     - Each tile is 256x256
+  - [ ] Show player position
+  - [ ] Show player route
   - [ ] Get system discoveries dated after latest update
     - The gap between generating the map and tiles means that any estimations are pessimistic
-  - [ ] Update colors of affected points
+  - [x] Update colors of affected points
 - [ ] Button bar
   - [x] Load file
     - One `x, z` point per line
   - [ ] Load external journal(s)
   - [x] Toggle drawing
-  - [ ] Toggle estimate
+  - [x] Toggle estimate

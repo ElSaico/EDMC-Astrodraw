@@ -146,7 +146,9 @@ class Astrodraw:
             case 'drawing':
                 for (x1, y1), (x2, y2) in itertools.pairwise(self.coords):
                     draw.line((x1-self.xmin, y1-self.ymin, x2-self.xmin, y2-self.ymin), fill=(255, 255, 255))
-            # TODO estimate
+            case 'estimate':
+                for pos, count in self.discovered_player.items():
+                    draw.point(pos, INDEXED_HEATMAP[self.discovered_map[pos] + count])
         self.display_img = ImageTk.PhotoImage(image)
         self.display_lbl['image'] = self.display_img
 
