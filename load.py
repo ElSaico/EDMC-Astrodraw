@@ -5,11 +5,12 @@ import itertools
 import logging
 import os
 import re
-import requests
 import threading
 import tkinter as tk
 from tkinter import filedialog
+from typing import Any, Optional
 
+import requests
 from PIL import Image, ImageDraw, ImageTk
 from config import appname, user_agent
 from plug import show_error
@@ -34,6 +35,10 @@ def galactic_z_to_map_y(z: int):
     return int((z - 25000) // 10) + 8192
 
 
+def galactic_xyz_to_map_xy(coord: tuple[int, int, int]):
+    return galactic_x_to_map_x(coord[0]), galactic_z_to_map_y(coord[2])
+
+
 # TODO other zoom levels
 class Astrodraw:
     frame: tk.Frame
@@ -48,6 +53,8 @@ class Astrodraw:
     ymin: int
     discovered_map: dict[tuple[int, int], 0] = {}
     discovered_player: collections.Counter[tuple[int, int]] = collections.Counter()
+    player_loc: tuple[int, int]
+    route: list[tuple[int, int]]
 
     def __init__(self):
         self.thread_update = threading.Thread(target=self.worker_update, name='Astrodraw-Update')
@@ -137,6 +144,9 @@ class Astrodraw:
                         logger.debug(f'Large heatmap index found: {pixels[x, y]}')
             self.draw_heatmap()
 
+    def relative_point(self, point: tuple[int, int]):
+        return point[0] - self.xmin, point[1] - self.ymin
+
     def draw_heatmap(self):
         if not self.heatmap:
             return
@@ -144,16 +154,32 @@ class Astrodraw:
         draw = ImageDraw.Draw(image)
         match self.heatmap_mode.get():
             case 'drawing':
-                for (x1, y1), (x2, y2) in itertools.pairwise(self.coords):
-                    draw.line((x1-self.xmin, y1-self.ymin, x2-self.xmin, y2-self.ymin), fill=(255, 255, 255))
+                for p1, p2 in itertools.pairwise(self.coords):
+                    draw.line((self.relative_point(p1), self.relative_point(p2)), (255, 255, 255))
             case 'estimate':
                 for pos, count in self.discovered_player.items():
-                    draw.point(pos, INDEXED_HEATMAP[self.discovered_map[pos] + count])
+                    draw.point(self.relative_point(pos), INDEXED_HEATMAP[self.discovered_map[pos] + count])
+        draw.point(self.relative_point(self.player_loc), (255, 0, 0))
         self.display_img = ImageTk.PhotoImage(image)
         self.display_lbl['image'] = self.display_img
+
+    def journal(  # noqa: C901, CCR001
+        self, cmdr: str, is_beta: bool, system: str, station: str, entry: dict[str, Any], state: dict[str, Any]
+    ) -> Optional[str]:
+        match entry['event']:
+            case 'StartUp' | 'FSDJump':
+                self.player_loc = galactic_xyz_to_map_xy(entry['StarPos'])
+                self.draw_heatmap()
+            case 'NavRoute':
+                self.route = [galactic_xyz_to_map_xy(star['StarPos']) for star in entry['Route']]
+            case 'Scan' if entry['ScanType'] == 'AutoScan' and not entry['WasDiscovered']:
+                self.discovered_player[galactic_xyz_to_map_xy(state['StarPos'])] += 1
+                if self.heatmap_mode.get() == 'estimate':
+                    self.draw_heatmap()
 
 
 plugin = Astrodraw()
 plugin_start3 = plugin.start
 plugin_stop = plugin.stop
 plugin_app = plugin.app
+journal_entry = plugin.journal
